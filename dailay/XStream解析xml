@@ -1,0 +1,95 @@
+前段时间在工作中接触到xml，需要将xml格式的数据直接转成java 对象，找到一种简单快捷的方法：XStream，使用注解可以很方便的转换
+（如果xml数据没有attribute的话，使用org.json里的方法，更容易解析）
+
+实体类：
+
+package com.xd.bean;
+
+import com.thoughtworks.xstream.annotations.XStreamAlias;
+import com.thoughtworks.xstream.annotations.XStreamAsAttribute;
+//给Book起的别名，在xml中会生成<book>标签
+@XStreamAlias("book")
+public class Book {
+    private String name="";
+    private String author="";
+    //该标签的意思是price会作为book的一个属性出现在标签中，如<book price="108">
+    @XStreamAsAttribute
+    private String price="";
+    public String getName() {
+        return name;
+    }
+    public void setName(String name) {
+        this.name = name;
+    }
+    public String getAuthor() {
+        return author;
+    }
+    public void setAuthor(String author) {
+        this.author = author;
+    }
+    public String getPrice() {
+        return price;
+    }
+    public void setPrice(String price) {
+        this.price = price;
+    }
+
+
+package com.xd.bean;
+import java.util.List;
+import com.thoughtworks.xstream.annotations.XStreamAlias;
+import com.thoughtworks.xstream.annotations.XStreamImplicit;
+
+@XStreamAlias("books")
+public class Books {
+    //隐式标签，加上这个注解可以去掉book最外层的<list></list>标签
+    @XStreamImplicit
+    private List<Book> list;
+    public List<Book> getList() {
+        return list;
+    }
+    public void setList(List<Book> list) {
+        this.list = list;
+    }   
+}
+
+
+
+public class test {
+    private static final String xmlString="<books><book price=\"108\"><name>Java编程思想</name><author>Bruce Eckel</author></book><book price=\"52\"><name>Effective Java</name><author>Joshua Bloch</author></book><book price=\"118\"><name>Java 7入门经典</name><author>Ivor Horton</author></book></books>";
+
+    public static String toXML(Object obj){
+        XStream xstream = new XStream(new DomDriver("utf-8"));
+        //识别obj中的注解
+        xstream.processAnnotations(obj.getClass());
+        //将obj对象转化为xml文件
+        return xstream.toXML(obj);
+    }
+
+    public static <T> T toBean(String xmlstr,Class<T> cls){
+        XStream xstream=new XStream(new DomDriver());
+        //识别cls中的注解
+        xstream.processAnnotations(cls);
+        //注解给编译器一条指令，告诉他被批注的某些元素代码保持静默
+        @SuppressWarnings("unchecked")
+        T t=(T) xstream.fromXML(xmlstr);
+        return t;
+    }
+
+    public static void main(String[] args) {
+        //将xmlstring解析
+        Books books=toBean(xmlString, Books.class);
+        List<Book> list=books.getList();
+        //将books中的值取出
+        for(Book book : list){
+            System.out.println("name="+book.getName()+ "\tauthor" +book.getAuthor()+ "\tprice=" +book.getPrice());
+        }
+
+        System.out.println(toXML(books));
+    }
+}
+
+
+
+
+使用XStream将xml转javabean再转json时注意，json里的字段名是合javabean的类名的首字母小写一样，不是和xml相同
