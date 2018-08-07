@@ -1,0 +1,29 @@
+RPC协议
+
+
+·1、服务消费方（client）调用以本地调用方式调用服务
+·2、client stub接收到调用后负责将方法、参数等组装成能够进行网络传输的消息体
+·3、client stub找到服务地址，并将消息发送到服务端
+·4、server stub收到消息后进行解码
+·5、server stub根据解码结果调用本地服务
+·6、本地服务执行并将结果返回给server stub
+·7、server stub将返回结果打包成消息并发送给消费方
+·8、client stub接收到消息，并进行解码
+·9、服务消费方得到最终结果
+
+
+使用代理模式调用远程服务
+
+requestId
+若使用netty，会使用channel.writeAndFlush()方法来发送消息二进制串，这个方法调用后对于整个远程调用（从发出请求到接收到结果）来说是一个异步的，即对于当前线程来说，将请求发送出来后，线程就可以往后执行了，至于服务端的结果，是服务端处理完成后，再以消息的形式发送给客户端。
+
+1>怎么让当前线程“暂停”，等结果回来后，再向后执行？
+2>如果有多个线程同时进行远程方法调用，这时建立在client server之间的socket连接上会有很多双方发送的消息传递，前后顺序也可能是随机的，server处理完结果后，将结果消息发送给client，client收到很多消息，怎么知道哪个消息结果是原先哪个线程调用的？
+
+如下图所示，线程A和线程B同时向client socket发送请求requestA和requestB，socket先后将requestB和requestA发送至server，而server可能将responseA先返回，尽管requestA请求到达时间更晚。我们需要一种机制保证responseA丢给ThreadA，responseB丢给ThreadB。
+
+怎么解决呢？
+1）client线程每次通过socket调用一次远程接口前，生成一个唯一的ID，即requestID（requestID必需保证在一个Socket连接里面是唯一的），一般常常使用AtomicLong从0开始累计数字生成唯一ID；
+2）将处理结果的回调对象callback，存放到全局ConcurrentHashMap里面put(requestID, callback)；
+3）当线程调用channel.writeAndFlush()发送消息后，紧接着执行callback的get()方法试图获取远程返回的结果。在get()内部，则使用synchronized获取回调对象callback的锁，再先检测是否已经获取到结果，如果没有，然后调用callback的wait()方法，释放callback上的锁，让当前线程处于等待状态。
+4）服务端接收到请求并处理后，将response结果（此结果中包含了前面的requestID）发送给客户端，客户端socket连接上专门监听消息的线程收到消息，分析结果，取到requestID，再从前面的ConcurrentHashMap里面get(requestID)，从而找到callback对象，再用synchronized获取callback上的锁，将方法调用结果设置到callback对象里，再调用callback.notifyAll()唤醒前面处于等待状态的线程。
