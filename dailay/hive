@@ -1,0 +1,219 @@
+Hive部署
+
+
+1 安装MySql
+apt-get install mysql-server
+mysql版本：5.7.21
+2安装Hive
+下载hive的压缩包到/home/hadoop/soft/目录下
+tar -zxvf apache-hive-2.4.2-bin.tar.gz
+将apache-hive-2.4.2-bin文件夹修改为hive-2.4.2
+sudo vim /etc/profile
+
+export HIVE_HOME=/home/hadoop/soft/hive-2.4.2
+export PATH=${HIVE_HOME}/bin
+
+source /etc/profile
+
+
+3 在MySQL上创建hive元数据库并对hive进行授权
+hadoop2@mjx-machine:~$ mysql -uroot -proot
+mysql: [Warning] Using a password on the command line interface can be insecure.
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 4
+Server version: 5.7.21-0ubuntu0.16.04.1 (Ubuntu)
+
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All rights reserved.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> CREATE USER  'hive'@'%'  IDENTIFIED BY 'hive';
+Query OK, 0 rows affected (0.01 sec)
+
+mysql> GRANT ALL PRIVILEGES ON  *.* TO 'hive'@'%' WITH GRANT OPTION;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> flush privileges;
+Query OK, 0 rows affected (0.00 sec)
+
+mysql> use hive
+Database changed
+
+mysql> select * from mysql.user;
+...
+
+mysql> exit
+Bye
+
+
+hadoop2@mjx-machine:~$ mysql -uhive -p
+Enter password: 
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 5
+Server version: 5.7.21-0ubuntu0.16.04.1 (Ubuntu)
+
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All rights reserved.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> exit
+Bye
+
+重启mysql服务
+sudo service mysqld restart
+
+hadoop2@mjx-machine:/etc/mysql/mysql.conf.d$ mysql -uhive -phive
+mysql: [Warning] Using a password on the command line interface can be insecure.
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 8
+Server version: 5.7.21-0ubuntu0.16.04.1 (Ubuntu)
+
+Copyright (c) 2000, 2018, Oracle and/or its affiliates. All rights reserved.
+
+Oracle is a registered trademark of Oracle Corporation and/or its
+affiliates. Other names may be trademarks of their respective
+owners.
+
+Type 'help;' or '\h' for help. Type '\c' to clear the current input statement.
+
+mysql> CREATE DATABASE hive_metadata;
+Query OK, 1 row affected (0.01 sec)
+
+mysql> exit
+Bye
+
+修改mysql配置文件
+hadoop2@mjx-machine:/etc/mysql/mysql.conf.d$ sudo vim mysqld.cnf
+
+将bind-address=127.0.0.1 注释掉，来实现可以在其他主机上访问
+
+4 将mysql的jar包放进hive
+mysql-connector-java-5.1.45放进hive的lib包中
+5 配置hive
+5.1 hive-site.xml
+cd apache-hive-2.3.2-bin/conf
+cp hive-default.xml.template hive-site.xml
+vim hive-site.xml
+<property>
+<name>javax.jdo.option.ConnectionURL</name>
+<value>jdbc:mysql://192.168.80.128:3306/hive_metadata?												       createDatabaseIfNotExist=true</value>
+<description>
+JDBC connect string for a JDBC metastore.
+To use SSL to encrypt/authenticate the connection, provide 							database-specific SSL flag in the connection URL.
+For example, jdbc:postgresql://myhost/db?ssl=true for postgres database.
+</description>
+
+<property>
+<name>javax.jdo.option.ConnectionDriverName</name>
+<value>com.mysql.jdbc.Driver</value>
+<description>Driver class name for a JDBC metastore</description>
+</property>
+
+<property>
+<name>javax.jdo.option.ConnectionUserName</name>
+<value>hive</value>
+<description>Username to use against metastore database</description>
+</property>
+
+
+<property>
+<name>javax.jdo.option.ConnectionPassword</name>
+<value>hive</value>
+<description>password to use against metastore database</description>
+</property> 
+
+
+5.2 hive-env.sh
+cp hive-env.sh.template hive-env.sh
+vim hive-env.sh
+修改HADOOP_HOME=/home/hadoop2/soft/hadoop
+
+5.3hive-config.sh
+cd /home/hadoop2/apache-hive-2.3.2-bin/bin
+vim hive-config.sh
+export JAVA_HOME=/usr/local/jdk/jdk1.8.0_60
+export HIVE_HOME=/usr/local/hive/hive-2.1.0
+export HADOOP_HOME=/usr/local/hadoop/hadoop-2.6.0
+
+sudo vim /etc/profile
+#hive
+export HIVE_HOME=/usr/local/hive/hive-2.1.0
+export PATH=$PATH:$HIVE_HOME/bin
+source /etc/profile
+
+启动hadoop
+启动hive即可
+
+
+
+hive安装的各种问题
+1、启动报错
+hadoop2@mjx-virtual-machine:~/soft/apache-hive-2.3.2-bin/bin$ ./hive
+SLF4J: Class path contains multiple SLF4J bindings.
+SLF4J: Found binding in [jar:file:/home/hadoop2/soft/apache-hive-2.3.2-bin/lib/log4j-slf4j-impl-2.6.2.jar!/org/slf4j/impl/StaticLoggerBinder.class]
+SLF4J: Found binding in [jar:file:/home/hadoop2/soft/hadoop/share/hadoop/common/lib/slf4j-log4j12-1.7.10.jar!/org/slf4j/impl/StaticLoggerBinder.class]
+SLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.
+SLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]
+
+Logging initialized using configuration in jar:file:/home/hadoop2/soft/apache-hive-2.3.2-bin/lib/hive-common-2.3.2.jar!/hive-log4j2.properties Async: true
+Exception in thread "main" java.lang.IllegalArgumentException: java.net.URISyntaxException: Relative path in absolute URI: ${system:java.io.tmpdir%7D/$%7Bsystem:user.name%7D
+	at org.apache.hadoop.fs.Path.initialize(Path.java:205)
+	at org.apache.hadoop.fs.Path.<init>(Path.java:171)
+	at org.apache.hadoop.hive.ql.session.SessionState.createSessionDirs(SessionState.java:659)
+	at org.apache.hadoop.hive.ql.session.SessionState.start(SessionState.java:582)
+	at org.apache.hadoop.hive.ql.session.SessionState.beginStart(SessionState.java:549)
+	at org.apache.hadoop.hive.cli.CliDriver.run(CliDriver.java:750)
+	at org.apache.hadoop.hive.cli.CliDriver.main(CliDriver.java:686)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at org.apache.hadoop.util.RunJar.run(RunJar.java:221)
+	at org.apache.hadoop.util.RunJar.main(RunJar.java:136)
+Caused by: java.net.URISyntaxException: Relative path in absolute URI: ${system:java.io.tmpdir%7D/$%7Bsystem:user.name%7D
+	at java.net.URI.checkPath(URI.java:1823)
+	at java.net.URI.<init>(URI.java:745)
+	at org.apache.hadoop.fs.Path.initialize(Path.java:202)
+	... 12 more
+解决办法：进入./bin目录，修改hive-site.xml文件
+将所有${system:java.io.tmpdir} 替换为绝对路径  /home/hadoop2/soft/apache-hive-2.3.2-bin/iotmp
+将所有的${system:user.name}替换为绝对路径 hadoop2
+并在 /home/hadoop2/soft/apache-hive-2.3.2-bin/下新建目录iotmp
+在iotmp目录下新建文件夹  hadoop2，在hadoop目录下新建目录operation_logs
+
+
+2、输入命令错误
+hive> show tables;
+Wed Mar 28 17:58:49 CST 2018 WARN: Establishing SSL connection without server's identity verification is not recommended. According to MySQL 5.5.45+, 5.6.26+ and 5.7.6+ requirements SSL connecce with existing applications not using SSL the verifyServerCertificate property is set to 'false'. You need either to explicitly disable SSL by setting useSSL=false, or set useSSL=true and pr
+Wed Mar 28 17:58:49 CST 2018 WARN: Establishing SSL connection without server's identity verification is not recommended. According to MySQL 5.5.45+, 5.6.26+ and 5.7.6+ requirements SSL connecce with existing applications not using SSL the verifyServerCertificate property is set to 'false'. You need either to explicitly disable SSL by setting useSSL=false, or set useSSL=true and pr
+Wed Mar 28 17:58:49 CST 2018 WARN: Establishing SSL connection without server's identity verification is not recommended. According to MySQL 5.5.45+, 5.6.26+ and 5.7.6+ requirements SSL connecce with existing applications not using SSL the verifyServerCertificate property is set to 'false'. You need either to explicitly disable SSL by setting useSSL=false, or set useSSL=true and pr
+Wed Mar 28 17:58:49 CST 2018 WARN: Establishing SSL connection without server's identity verification is not recommended. According to MySQL 5.5.45+, 5.6.26+ and 5.7.6+ requirements SSL connecce with existing applications not using SSL the verifyServerCertificate property is set to 'false'. You need either to explicitly disable SSL by setting useSSL=false, or set useSSL=true and pr
+Wed Mar 28 17:58:53 CST 2018 WARN: Establishing SSL connection without server's identity verification is not recommended. According to MySQL 5.5.45+, 5.6.26+ and 5.7.6+ requirements SSL connecce with existing applications not using SSL the verifyServerCertificate property is set to 'false'. You need either to explicitly disable SSL by setting useSSL=false, or set useSSL=true and pr
+Wed Mar 28 17:58:53 CST 2018 WARN: Establishing SSL connection without server's identity verification is not recommended. According to MySQL 5.5.45+, 5.6.26+ and 5.7.6+ requirements SSL connecce with existing applications not using SSL the verifyServerCertificate property is set to 'false'. You need either to explicitly disable SSL by setting useSSL=false, or set useSSL=true and pr
+Wed Mar 28 17:58:53 CST 2018 WARN: Establishing SSL connection without server's identity verification is not recommended. According to MySQL 5.5.45+, 5.6.26+ and 5.7.6+ requirements SSL connecce with existing applications not using SSL the verifyServerCertificate property is set to 'false'. You need either to explicitly disable SSL by setting useSSL=false, or set useSSL=true and pr
+Wed Mar 28 17:58:53 CST 2018 WARN: Establishing SSL connection without server's identity verification is not recommended. According to MySQL 5.5.45+, 5.6.26+ and 5.7.6+ requirements SSL connecce with existing applications not using SSL the verifyServerCertificate property is set to 'false'. You need either to explicitly disable SSL by setting useSSL=false, or set useSSL=true and pr
+FAILED: SemanticException org.apache.hadoop.hive.ql.metadata.HiveException: java.lang.RuntimeException: Unable to instantiate org.apache.hadoop.hive.ql.metadata.SessionHiveMetaStoreClient
+hive> show databases;
+FAILED: SemanticException org.apache.hadoop.hive.ql.metadata.HiveException: java.lang.RuntimeException: Unable to instantiate org.apache.hadoop.hive.ql.metadata.SessionHiveMetaStoreClient
+
+进入./bin 目录，输入命令：./schematool -dbType mysql -initSchema
+修改hive-site.xml
+<property>
+  	<name>hive.metastore.schema.verification</name>
+  	<value>false</value>
+</property>
+
+
+hive> show tables;
+OK
+Time taken: 0.083 seconds
+
+成功
