@@ -1,0 +1,63 @@
+Habse全分布式部署
+
+hadoop版本：2.7.5
+1、Hbase分布式部署
+1.1前提：
+1.四台ubuntu14.04虚拟机
+2.四台虚拟机配置好静态ip分别为
+192.168.157.101	hadoop01 namenode
+192.168.157.102	hadoop02 datanode
+192.168.157.103	hadoop03 datanode
+192.168.157.104	hadoop04 datanode
+3.四台虚拟机配置好jdk环境变量：jdk1.8.0_161
+4.四台虚拟机配置好Hadoop：Hadoop版本为2.7.5
+1.2 hbase下载
+使用版本 hbase-1.4.2,将其放到/home/hadoop/soft目录下
+mv hbase-1.4.2-bin.tar.gz ./home/hadoop/soft/
+tar -zxvf hbase-1.4.2-bin.tar.gz
+1.3 设置环境变量
+sudo vim /etc/profile
+
+export HBASE_HOME=/home/hadoop/soft/hbase-1.4.2
+export PATH=${HBASE_HOME}/bin
+
+1.4 修改配置文件
+vim /home/hadoop/soft/hbase-1.4.2/conf/hbase-env.sh
+export JAVA_HOME=/usr/local/java/jdk1.8.0_161
+       export HBASE_CLASSPATH=/home/hadoop/soft/hbase-1.4.2/conf
+export HBASE_MANAGES_ZK=true        
+#此配置信息，设置由hbase自己管理zookeeper，不需要单独的zookeeper。
+       export HBASE_HOME=/home/hadoop/soft/hbase-1.4.2
+export HADOOP_HOME=/home/hadoop/soft/hadoop
+       export HBASE_LOG_DIR=/home/hadoop/soft/hbase/logs    #Hbase日志目录
+
+vim /home/hadoop/soft/hbase-1.4.2/conf/hbase-site.xml
+<configuration>
+    	<property>
+     		<name>hbase.rootdir</name>
+     		<value>hdfs://hadoop01:9000/hbase</value>
+    	</property>
+    	<property>
+     		<name>hbase.cluster.distributed</name>
+     		<value>true</value>
+   	 </property>
+    	<property>
+    		<name>hbase.master</name>
+    		<value>hadoop01:6000</value>
+    	</property>
+    	<property>
+     		<name>hbase.zookeeper.quorum</name>
+     		<value>hadoop01,hadoop02,hadoop03,hadoop04</value>
+    	</property>
+</configuration>
+vim /home/hadoop/soft/hbase-1.4.2/conf/regionservers
+hadoop02
+hadoop03
+hadoop04
+
+将hadoop01上的hbase传输到其他服务器上
+sudo scp -r /home/hadoop/soft/hbase-1.4.2 hadoop@hadoop02:~/soft/
+sudo scp -r /home/hadoop/soft/hbase-1.4.2 hadoop@hadoop03:~/soft/
+sudo scp -r /home/hadoop/soft/hbase-1.4.2 hadoop@hadoop04:~/soft/
+1.5 启动Hbase
+先启动Hadoop，再启动Hbase
