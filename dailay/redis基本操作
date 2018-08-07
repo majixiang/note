@@ -1,0 +1,86 @@
+redis是K-V存储系统，
+
+value共支持5中数据类型：
+字符串：string
+列表：list
+集合：set
+有序集合：sorted set
+哈希：hash
+
+key不要太长，尽量不要超过1024个字节，这样不仅会消耗内存，而且会降低查找的效率
+key不要太短：太短的话，key的可读性会降低
+key最好使用统一的命名模式。如：user:1000:password
+
+
+string操作
+
+set mystr "hello word"
+get mystr
+
+list操作
+lpush:在列表左侧添加一个
+rpush：在列表右侧添加一个
+lrange：从lists中指定范围来提取元素
+可以使用list来实现一个消息队列，而且可以确保先后顺序
+
+
+set操作
+
+添加新元素：
+sadd myset "one"
+sadd myset "two"
+列出集合myset中的所有元素
+smembers myset
+判断元素1是否在i和myset中，返回1表示存在
+sismember myset "one"
+删除已有元素
+取交集
+取并集
+sunion myset yourset
+取差集
+
+
+
+sorted set
+每个元素都关联一个序号（score），这是排序的依据
+
+zadd myset 1 "baidu.com"
+zadd myset 2 "google.com"
+zadd myset 2 "360.com"
+
+列出myset的所有元素，同时列出其序号
+
+zrange myset 0 -1 w9ith scores
+"baidu.com"
+"1"
+"360.com"
+"2"
+"google.com"
+"3"
+只列出myset的元素
+zrange myset 0 -1
+"baidu.com"
+"360.com"
+"google.com"
+
+hash
+哈希存的是字符串和字符串之间的映射，比如一个用户要存储其全名、姓氏、年龄等等，就适合用哈希
+
+HMSET user:001 username antirez password P1pp0 age 34
+HGETALL user:001
+"username"
+"antirez"
+"password"
+"P1pp0"
+"age"
+"34"
+更改哈希中的某一个值
+HSET user:001 password 12345
+
+HGETALL user:001
+"username"
+"antirez"
+"password"
+"12345"
+"age"
+"34"
